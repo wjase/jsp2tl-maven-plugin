@@ -17,7 +17,7 @@ package com.cybernostics;
  */
 import com.cybernostics.jsp2thymeleaf.JSP2Thymeleaf;
 import com.cybernostics.jsp2thymeleaf.JSP2ThymeleafConfiguration;
-import com.cybernostics.jsp2thymeleaf.converters.JSP2ThymeLeafConverterException;
+import com.cybernostics.jsp2thymeleaf.api.exception.JSP2ThymeLeafException;
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
@@ -99,14 +99,14 @@ public class JSP2ThymeleafMojo
                 .withDestFolder(outputDirectory.toString())
                 .build();
         JSP2Thymeleaf jSP2Thymeleaf = new JSP2Thymeleaf(config);
-        final List<JSP2ThymeLeafConverterException> exceptions = jSP2Thymeleaf.run();
+        final List<JSP2ThymeLeafException> exceptions = jSP2Thymeleaf.run();
         if (exceptions.isEmpty())
         {
             log.info("JSP2Thymeleaf converted all files successfully.");
         } else
         {
             String message = exceptions.stream().map(it -> it.getCause().getMessage()).collect(Collectors.joining("\n"));
-            for (JSP2ThymeLeafConverterException exception : exceptions)
+            for (JSP2ThymeLeafException exception : exceptions)
             {
                 log.error(exception.getCause().getLocalizedMessage() + "\n" + ExceptionUtils.getStackTrace(exception));
             }
