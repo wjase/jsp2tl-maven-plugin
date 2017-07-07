@@ -1,4 +1,4 @@
-package com.cybernostics;
+package com.cybernostics.jsp2thymeleaf.maven;
 
 /*
  * Copyright 2001-2005 The Apache Software Foundation.
@@ -19,10 +19,11 @@ import com.cybernostics.jsp2thymeleaf.JSP2Thymeleaf;
 import com.cybernostics.jsp2thymeleaf.JSP2ThymeleafConfiguration;
 import com.cybernostics.jsp2thymeleaf.api.exception.JSP2ThymeLeafException;
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import static java.util.stream.Collectors.toList;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.logging.Log;
@@ -31,11 +32,12 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
 /**
- * Goal which touches a timestamp file.
+ * Goal which converts JSP files into Thymeleaf. Files get put into the
+ * Generated Sources folder
  *
  */
-@Mojo(name = "jsp2tl", defaultPhase = LifecyclePhase.PROCESS_SOURCES, requiresProject = true)
-public class JSP2ThymeleafMojo
+@Mojo(name = "convert", defaultPhase = LifecyclePhase.PROCESS_SOURCES, requiresProject = true)
+public class JSPConvertMojo
         extends AbstractMojo
 {
 
@@ -50,6 +52,9 @@ public class JSP2ThymeleafMojo
 
     @Parameter(defaultValue = "${project.basedir}/src/main/webapp/WEB-INF/jsp", required = true)
     private File srcDirectory;
+
+    @Parameter(defaultValue = "${project.basedir}/src/main/jsp2thymeleaf", required = false)
+    private File converterScriptDirectory;
 
     private static final String[] DEFAULT_INCLUDES =
     {
@@ -91,27 +96,52 @@ public class JSP2ThymeleafMojo
         log.info("outputDirectory = " + outputDirectory.getAbsolutePath());
         log.info("srcDirectory = " + srcDirectory.getAbsolutePath());
         log.info("updateLinks = " + updateLinks);
+        log.info("taglib scripts folder " + converterScriptDirectory.toString());
         JSP2ThymeleafConfiguration config = JSP2ThymeleafConfiguration
                 .getBuilder()
                 .withIncludes(includes)
                 .withExcludes(excludes)
                 .withSrcFolder(srcDirectory.toString())
                 .withDestFolder(outputDirectory.toString())
+                .withConverterScripts(scriptsInFolder(converterScriptDirectory))
                 .build();
         JSP2Thymeleaf jSP2Thymeleaf = new JSP2Thymeleaf(config);
-        final List<JSP2ThymeLeafException> exceptions = jSP2Thymeleaf.run();
-        if (exceptions.isEmpty())
+        try
         {
-            log.info("JSP2Thymeleaf converted all files successfully.");
-        } else
-        {
-            String message = exceptions.stream().map(it -> it.getCause().getMessage()).collect(Collectors.joining("\n"));
-            for (JSP2ThymeLeafException exception : exceptions)
+            final List<JSP2ThymeLeafException> exceptions = jSP2Thymeleaf.run();
+            if (exceptions.isEmpty())
             {
-                log.error(exception.getCause().getLocalizedMessage() + "\n" + ExceptionUtils.getStackTrace(exception));
+                log.info("JSP2Thymeleaf converted all files successfully.");
+            } else
+            {
+                log.error("JSP2Thymeleaf had errors:");
+                for (JSP2ThymeLeafException exception : exceptions)
+                {
+                    log.error(exception.getMessage());
+                }
+                throw new MojoExecutionException("Failed to convert all files");
             }
-            throw new MojoExecutionException("Failed to convert all files");
+        } catch (MojoExecutionException exception)
+        {
+            throw exception;
+        } catch (Throwable t)
+        {
+            log.error(t);
+            throw t;
         }
+    }
+
+    private String[] scriptsInFolder(File converterScriptDirectory)
+    {
+        final Path scriptFolder = Paths.get(converterScriptDirectory.toURI());
+        String[] templateArray = new String[0];
+        return Arrays.asList(converterScriptDirectory.list((dir, name) ->
+        {
+            return name.endsWith(".groovy");
+        })).stream()
+                .map(it -> scriptFolder.resolve(it).toAbsolutePath())
+                .collect(toList())
+                .toArray(templateArray);
     }
 
 }
